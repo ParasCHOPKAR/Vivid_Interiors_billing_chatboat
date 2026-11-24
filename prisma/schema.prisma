@@ -1,0 +1,172 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Company {
+  id              String            @id @default(uuid())
+  name            String            @default("Vivid Interiors")
+  tradeName       String?           @default("Vivid Interiors — Architecture, Design & Turnkey Execution")
+  logoUrl         String?
+  address         String            @default("B8, New Meenal Society, Nal Stop Chowk, Karve Road, Erandwane")
+  city            String            @default("Pune")
+  state           String            @default("Maharashtra")
+  stateCode       String            @default("27")
+  pincode         String            @default("411004")
+  phone           String            @default("+91 99701 80947")
+  email           String            @default("design@vividinteriorspune.com")
+  gstin           String?           @default("27AABCV1234F1Z3")
+  pan             String?           @default("AABCV1234F")
+  bankName        String?           @default("HDFC Bank")
+  bankAccountNo   String?           @default("50200088991122")
+  bankIfsc        String?           @default("HDFC0000103")
+  bankBranch      String?           @default("Karve Road Branch, Pune")
+  upiId           String?           @default("vividinteriors@hdfcbank")
+  invoicePrefix   String            @default("VI")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  users           User[]
+  customers       Customer[]
+  invoices        Invoice[]
+  sequences       InvoiceSequence[]
+  auditLogs       AuditLog[]
+}
+
+model User {
+  id          String     @id @default(uuid())
+  companyId   String
+  company     Company    @relation(fields: [companyId], references: [id])
+  name        String     @default("Admin User")
+  email       String     @unique
+  password    String     @default("admin123")
+  role        String     @default("ADMIN") // ADMIN, ACCOUNTANT, OPERATOR
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+
+  invoices    Invoice[]
+  auditLogs   AuditLog[]
+}
+
+model Customer {
+  id              String     @id @default(uuid())
+  companyId       String
+  company         Company    @relation(fields: [companyId], references: [id])
+  name            String
+  phone           String
+  email           String?
+  billingAddress  String?
+  siteAddress     String?
+  city            String?    @default("Nagpur")
+  state           String     @default("Maharashtra")
+  stateCode       String     @default("27")
+  gstin           String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  invoices        Invoice[]
+}
+
+model InvoiceSequence {
+  id            String    @id @default(uuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  fiscalYear    String    // e.g., '2026'
+  prefix        String    @default("VI")
+  currentNumber Int       @default(0)
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([companyId, fiscalYear])
+}
+
+model Invoice {
+  id              String         @id @default(uuid())
+  companyId       String
+  company         Company        @relation(fields: [companyId], references: [id])
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
+  customerId      String
+  customer        Customer       @relation(fields: [customerId], references: [id])
+  
+  invoiceNumber   String         @unique
+  invoiceDate     DateTime       @default(now())
+  dueDate         DateTime?
+  status          String         @default("ISSUED") // DRAFT, ISSUED, PAID, PARTIAL, CANCELLED
+  
+  projectName     String?        @default("Turnkey Interior Architecture & Execution")
+  siteAddress     String?
+  
+  // Financial totals (stored as Floats, computed via decimal.js)
+  subtotal        Float          @default(0)
+  discountType    String?        @default("FLAT") // PERCENT | FLAT
+  discountValue   Float          @default(0)
+  discountAmount  Float          @default(0)
+  taxableAmount   Float          @default(0)
+  
+  gstType         String?        @default("CGST_SGST") // CGST_SGST, IGST, NO_GST
+  gstRate         Float          @default(18) // 18% standard for interior design & turnkey contracting
+  cgstAmount      Float          @default(0)
+  sgstAmount      Float          @default(0)
+  igstAmount      Float          @default(0)
+  totalTaxAmount  Float          @default(0)
+  
+  roundOff        Float          @default(0)
+  grandTotal      Float          @default(0)
+  paidAmount      Float          @default(0)
+  balanceAmount   Float          @default(0)
+  
+  amountInWords   String?
+  termsConditions String?        @default("1. Payment Terms: 50% advance on design confirmation, 40% on material delivery at site, 10% upon final handover.\n2. Variations or additions to approved drawings will be billed additionally.\n3. All disputes subject to Pune jurisdiction.")
+  notes           String?
+  pdfUrl          String?
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  items           InvoiceItem[]
+  payments        Payment[]
+}
+
+model InvoiceItem {
+  id            String    @id @default(uuid())
+  invoiceId     String
+  invoice       Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description   String
+  unit          String    @default("Job") // Job, Sq. ft., Rft., Set, Nos, Lump Sum
+  quantity      Float     @default(1)
+  rate          Float     @default(0)
+  amount        Float     @default(0)
+  hsnSacCode    String?   @default("998391") // Interior Design & Fit-Out SAC
+  sortOrder     Int       @default(0)
+}
+
+model Payment {
+  id            String         @id @default(uuid())
+  paymentId     String?        // e.g. PAY-2026-000001
+  invoiceId     String
+  invoice       Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount        Float
+  paymentDate   DateTime       @default(now())
+  method        String         @default("UPI") // CASH, UPI, BANK, CHEQUE
+  referenceNo   String?        // Transaction ID / UTR / Cheque Number
+  notes         String?        // Remarks
+  createdAt     DateTime       @default(now())
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  action      String    // INVOICE_CREATED, INVOICE_CANCELLED, PAYMENT_RECORDED
+  entity      String    // INVOICE, CUSTOMER, PAYMENT
+  entityId    String
+  details     String?   // JSON stringified details
+  ipAddress   String?
+  createdAt   DateTime  @default(now())
+}
