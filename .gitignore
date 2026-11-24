@@ -30,15 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# sqlite database
-*.db
+# sqlite database (keep pre-seeded dev.db for Vercel deployment)
 *.db-journal
-*.sqlite
 *.sqlite3
 
-# env files (can opt-in for committing if needed)
-.env
+# env files (committed for Vercel build defaults)
 .env*.local
+!.env
 !.env.example
 
 # vercel
